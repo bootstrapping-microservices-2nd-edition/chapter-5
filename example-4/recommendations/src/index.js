@@ -1,7 +1,11 @@
 const express = require("express");
 const mongodb = require("mongodb");
-const amqp = require('amqplib');
 const bodyParser = require("body-parser");
+const amqp = require("amqplib");
+
+if (!process.env.PORT) {
+    throw new Error("Please specify the port number for the HTTP server with the environment variable PORT.");
+}
 
 if (!process.env.DBHOST) {
     throw new Error("Please specify the databse host using environment variable DBHOST.");
@@ -15,101 +19,95 @@ if (!process.env.RABBIT) {
     throw new Error("Please specify the name of the RabbitMQ host using environment variable RABBIT");
 }
 
+const PORT = process.env.PORT;
 const DBHOST = process.env.DBHOST;
 const DBNAME = process.env.DBNAME;
 const RABBIT = process.env.RABBIT;
 
 //
-// Connect to the database.
+// Application entry point.
 //
-function connectDb() {
-    return mongodb.MongoClient.connect(DBHOST) 
-        .then(client => {
-            return client.db(DBNAME);
-        });
-}
+async function main() {
+    const app = express();
 
-//
-// Connect to the RabbitMQ server.
-//
-function connectRabbit() {
+    //
+    // Enables JSON body parsing for HTTP requests.
+    //
+    app.use(bodyParser.json()); 
 
-    console.log(`Connecting to RabbitMQ server at ${RABBIT}.`);
+    //
+    // Connects to the database server.
+    //
+    const client = await mongodb.MongoClient.connect(DBHOST);
 
-    return amqp.connect(RABBIT) // Connect to the RabbitMQ server.
-        .then(messagingConnection => {
-            console.log("Connected to RabbitMQ.");
+    //
+    // Gets the database for this microservice.
+    //
+    const db  = client.db(DBNAME);
 
-            return messagingConnection.createChannel(); // Create a RabbitMQ messaging channel.
-        });
-}
+    //
+    // Gets the collection for storing video metadata.
+    //
+    const videosCollection = db.collection("videos");
+    
+    //
+    // Connect to the RabbitMQ server.
+    //
+    const messagingConnection = await amqp.connect(RABBIT); 
 
-//
-// Setup event handlers.
-//
-function setupHandlers(app, db, messageChannel) {
+    //
+    // Creates a RabbitMQ messaging channel.
+    //
+    const messageChannel = await messagingConnection.createChannel(); 
 
-    const historyCollection = db.collection("videos");
+    // 
+    // Handler for incoming messages.
+    //
+    async function consumeViewedMessage(msg) {
 
-    // ... YOU CAN PUT HTTP ROUTES AND OTHER MESSAGE HANDLERS HERE ...
-
-    function consumeViewedMessage(msg) { // Handler for coming messages.
         const parsedMsg = JSON.parse(msg.content.toString()); // Parse the JSON message.
+        
         console.log("Received a 'viewed' message:");
         console.log(JSON.stringify(parsedMsg, null, 4)); // JUST PRINTING THE RECEIVED MESSAGE.
 
         // ... ADD YOUR CODE HERE TO PROCESS THE MESSAGE ...
 
         console.log("Acknowledging message was handled.");
-
+                
         messageChannel.ack(msg); // If there is no error, acknowledge the message.
     };
 
-    return messageChannel.assertExchange("viewed", "fanout") // Assert that we have a "viewed" exchange.
-        .then(() => {
-            return messageChannel.assertQueue("", { exclusive: true }); // Create an anonyous queue.
-        })
-        .then(response => {
-            const queueName = response.queue;
-            console.log(`Created queue ${queueName}, binding it to "viewed" exchange.`);
-            return messageChannel.bindQueue(queueName, "viewed", "") // Bind the queue to the exchange.
-                .then(() => {
-                    return messageChannel.consume(queueName, consumeViewedMessage); // Start receiving messages from the anonymous queue.
-                });
-        });
-}
+    //
+    // Asserts that we have a "viewed" exchange.
+    //
+    await messageChannel.assertExchange("viewed", "fanout"); 
 
-//
-// Start the HTTP server.
-//
-function startHttpServer(db, messageChannel) {
-    return new Promise(resolve => { // Wrap in a promise so we can be notified when the server has started.
-        const app = express();
-        app.use(bodyParser.json()); // Enable JSON body for HTTP requests.
-        setupHandlers(app, db, messageChannel);
+	//
+	// Creates an anonyous queue.
+	//
+	const { queue } = await messageChannel.assertQueue("", { exclusive: true }); 
 
-        const port = process.env.PORT && parseInt(process.env.PORT) || 3000;
-        app.listen(port, () => {
-            resolve(); // HTTP server is listening, resolve the promise.
-        });
+    console.log(`Created queue ${queue}, binding it to "viewed" exchange.`);
+    
+    //
+    // Binds the queue to the exchange.
+    //
+    await messageChannel.bindQueue(queue, "viewed", ""); 
+
+    //
+    // Start receiving messages from the anonymous queue.
+    //
+    await messageChannel.consume(queue, consumeViewedMessage);
+
+    //
+    // Starts the HTTP server.
+    //
+    app.listen(PORT, () => {
+        console.log("Microservice online.");
     });
 }
 
-//
-// Application entry point.
-//
-function main() {
-    return connectDb()                                          // Connect to the database...
-        .then(db => {                                           // then...
-            return connectRabbit()                              // connect to RabbitMQ...
-                .then(messageChannel => {                       // then...
-                    return startHttpServer(db, messageChannel); // start the HTTP server.
-                });
-        });
-}
-
 main()
-    .then(() => console.log("Microservice online."))
     .catch(err => {
         console.error("Microservice failed to start.");
         console.error(err && err.stack || err);

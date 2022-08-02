@@ -2,53 +2,44 @@ const express = require("express");
 const fs = require("fs");
 
 //
-// Setup event handlers.
+// Throws an error if the PORT environment variable is missing.
 //
-function setupHandlers(app) {
-    app.get("/video", (req, res) => { // Route for streaming video.
-        
-        const videoPath = "./videos/SampleVideo_1280x720_1mb.mp4";
-        fs.stat(videoPath, (err, stats) => {
-            if (err) {
-                console.error("An error occurred ");
-                res.sendStatus(500);
-                return;
-            }
-    
-            res.writeHead(200, {
-                "Content-Length": stats.size,
-                "Content-Type": "video/mp4",
-            });
-    
-            fs.createReadStream(videoPath).pipe(res);
-        });
-    });
+if (!process.env.PORT) {
+    throw new Error("Please specify the port number for the HTTP server with the environment variable PORT.");
 }
 
 //
-// Start the HTTP server.
+// Extracts environment variables to globals for convenience.
 //
-function startHttpServer() {
-    return new Promise((resolve, reject) => { // Wrap in a promise so we can be notified when the server has started.
-        const app = express();
-        setupHandlers(app);
-        
-        const port = process.env.PORT && parseInt(process.env.PORT) || 3000;
-        app.listen(port, () => {
-            resolve();
-        });
-    });
-}
+
+const PORT = process.env.PORT;
 
 //
 // Application entry point.
 //
-function main() {
-    return startHttpServer();
+async function main() {
+
+    const app = express();
+
+    app.get("/video", async (req, res) => { // Route for streaming video.
+        
+        const videoPath = "./videos/SampleVideo_1280x720_1mb.mp4";
+        const stats = await fs.promises.stat(videoPath);
+    
+        res.writeHead(200, {
+            "Content-Length": stats.size,
+            "Content-Type": "video/mp4",
+        });
+
+        fs.createReadStream(videoPath).pipe(res);
+    });
+
+    app.listen(PORT, () => {
+        console.log("Microservice online.");
+    });
 }
 
 main()
-    .then(() => console.log("Microservice online."))
     .catch(err => {
         console.error("Microservice failed to start.");
         console.error(err && err.stack || err);

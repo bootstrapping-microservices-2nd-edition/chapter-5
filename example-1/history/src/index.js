@@ -1,38 +1,35 @@
 const express = require("express");
 
 //
-// Setup event handlers.
+// Throws an error if the PORT environment variable is missing.
 //
-function setupHandlers(app) {
-    // ... THIS IS A STUB MICROSERVICE: SETUP YOUR HTTP ROUTES HERE ...
+if (!process.env.PORT) {
+    throw new Error("Please specify the port number for the HTTP server with the environment variable PORT.");
 }
 
 //
-// Start the HTTP server.
+// Extracts environment variables to globals for convenience.
 //
-function startHttpServer() {
-    return new Promise(resolve => { // Wrap in a promise so we can be notified when the server has started.
-        const app = express();
-        setupHandlers(app);
-        
-        const port = process.env.PORT && parseInt(process.env.PORT) || 3000;
-        app.listen(port, () => {
-            resolve(); // HTTP server is listening, resolve the promise.
-        });
-    });
-}
+
+const PORT = process.env.PORT;
 
 //
 // Application entry point.
 //
-function main() {
+async function main() {
+
     console.log("Hello world!");
-    
-    return startHttpServer();
+
+    const app = express();
+
+    // ... add route handlers here ...
+
+    app.listen(PORT, () => {
+        console.log("Microservice online.")
+    });
 }
 
 main()
-    .then(() => console.log("Microservice online."))
     .catch(err => {
         console.error("Microservice failed to start.");
         console.error(err && err.stack || err);
