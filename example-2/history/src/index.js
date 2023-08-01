@@ -7,7 +7,7 @@ if (!process.env.PORT) {
 }
 
 if (!process.env.DBHOST) {
-    throw new Error("Please specify the databse host using environment variable DBHOST.");
+    throw new Error("Please specify the database host using environment variable DBHOST.");
 }
 
 if (!process.env.DBNAME) {
@@ -40,40 +40,40 @@ async function main() {
     //
     const db  = client.db(DBNAME);
 
+	//
+    // Gets the collection for storing video viewing history.
     //
-    // Gets the collection for storing video metadata.
-    //
-    const videosCollection = db.collection("videos");
+    const historyCollection = db.collection("history");
 
     //
     // Handles HTTP POST request to /viewed.
     //
     app.post("/viewed", async (req, res) => { // Handle the "viewed" message via HTTP POST request.
         const videoPath = req.body.videoPath; // Read JSON body from HTTP request.
-        await videosCollection.insertOne({ videoPath: videoPath }) // Record the "view" in the database.
+        await historyCollection.insertOne({ videoPath: videoPath }) // Record the "view" in the database.
 
         console.log(`Added video ${videoPath} to history.`);
         res.sendStatus(200);
     });
 
     //
-    // Handles HTTP GET request to /history.
+    // HTTP GET route to retrieve video viewing history.
     //
     app.get("/history", async (req, res) => {
         const skip = parseInt(req.query.skip);
         const limit = parseInt(req.query.limit);
-        const documents = await videosCollection.find()
+        const history = await historyCollection.find()
             .skip(skip)
             .limit(limit)
             .toArray();
-        res.json({ history: documents });
+        res.json({ history });
     });
 
     //
     // Starts the HTTP server.
     //
     app.listen(PORT, () => {
-        console.log("Microservice online.")
+        console.log("Microservice online.");
     });
 }
 

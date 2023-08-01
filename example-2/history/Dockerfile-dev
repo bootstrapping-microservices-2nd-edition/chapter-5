@@ -1,9 +1,7 @@
-FROM node:18.5.0-alpine
+FROM node:18.5.0
 
 WORKDIR /usr/src/app
 COPY package*.json ./
 
-CMD npm config set cache-min 9999999 && \
-    npm install && \
-    npm run start:dev
-    
+CMD npm install --prefer-offline && \
+    npm run start:dev    

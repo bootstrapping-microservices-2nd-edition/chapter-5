@@ -60,12 +60,11 @@ async function main() {
     
         fs.createReadStream(videoPath).pipe(res);
 
-        sendViewedMessage(videoPath); // Send message to "history" microservice that this video has been "viewed".
+        sendViewedMessage(videoPath); // Sends the "viewed" message to indicate this video has been watched.
     });
 
-
     app.listen(PORT, () => {
-        console.log("Microservice online.")
+        console.log("Microservice online.");
     });
 }
 

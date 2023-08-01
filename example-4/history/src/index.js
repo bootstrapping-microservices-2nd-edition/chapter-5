@@ -1,14 +1,14 @@
 const express = require("express");
 const mongodb = require("mongodb");
+const amqp = require('amqplib');
 const bodyParser = require("body-parser");
-const amqp = require("amqplib");
 
 if (!process.env.PORT) {
     throw new Error("Please specify the port number for the HTTP server with the environment variable PORT.");
 }
 
 if (!process.env.DBHOST) {
-    throw new Error("Please specify the databse host using environment variable DBHOST.");
+    throw new Error("Please specify the database host using environment variable DBHOST.");
 }
 
 if (!process.env.DBNAME) {
@@ -47,34 +47,21 @@ async function main() {
     const db  = client.db(DBNAME);
 
     //
-    // Gets the collection for storing video metadata.
+    // Gets the collection for storing video viewing history.
     //
-    const videosCollection = db.collection("videos");
+    const historyCollection = db.collection("history");
     
     //
-    // Connect to the RabbitMQ server.
+    // Connects to the RabbitMQ server.
     //
     const messagingConnection = await amqp.connect(RABBIT); 
+
+    console.log("Connected to RabbitMQ.");
 
     //
     // Creates a RabbitMQ messaging channel.
     //
     const messageChannel = await messagingConnection.createChannel(); 
-
-    // 
-    // Handler for incoming messages.
-    //
-    async function consumeViewedMessage(msg) {
-        console.log("Received a 'viewed' message");
-
-        const parsedMsg = JSON.parse(msg.content.toString()); // Parse the JSON message.
-        
-        await videosCollection.insertOne({ videoPath: parsedMsg.videoPath }); // Record the "view" in the database.
-
-        console.log("Acknowledging message was handled.");
-                
-        messageChannel.ack(msg); // If there is no error, acknowledge the message.
-    };
 
     //
     // Asserts that we have a "viewed" exchange.
@@ -96,19 +83,29 @@ async function main() {
     //
     // Start receiving messages from the anonymous queue.
     //
-    await messageChannel.consume(queue, consumeViewedMessage);
+    await messageChannel.consume(queue, async (msg)=> {
+        console.log("Received a 'viewed' message");
+
+        const parsedMsg = JSON.parse(msg.content.toString()); // Parse the JSON message.
+        
+        await historyCollection.insertOne({ videoPath: parsedMsg.videoPath }); // Record the "view" in the database.
+
+        console.log("Acknowledging message was handled.");
+                
+        messageChannel.ack(msg); // If there is no error, acknowledge the message.
+    });
 
     //
-    // Handles HTTP GET request to /history.
+    // HTTP GET route to retrieve video viewing history.
     //
     app.get("/history", async (req, res) => {
         const skip = parseInt(req.query.skip);
         const limit = parseInt(req.query.limit);
-        const documents = await videosCollection.find()
+        const history = await videosCollection.find()
             .skip(skip)
             .limit(limit)
             .toArray();
-        res.json({ history: documents });
+        res.json({ history });
     });
 
     //
