@@ -3,7 +3,6 @@ FROM node:18.17.1
 WORKDIR /usr/src/app
 COPY package*.json ./
 
-CMD npm config set cache-min 9999999 && \
-    npm install && \
+CMD npm install --prefer-offline && \
     npx wait-port rabbit:5672 && \
     npm run start:dev
