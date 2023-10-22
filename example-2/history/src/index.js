@@ -1,6 +1,5 @@
 const express = require("express");
 const mongodb = require("mongodb");
-const bodyParser = require("body-parser");
 
 if (!process.env.PORT) {
     throw new Error("Please specify the port number for the HTTP server with the environment variable PORT.");
@@ -28,7 +27,7 @@ async function main() {
     //
     // Enables JSON body parsing for HTTP requests.
     //
-    app.use(bodyParser.json()); 
+    app.use(express.json()); 
 
     //
     // Connects to the database server.

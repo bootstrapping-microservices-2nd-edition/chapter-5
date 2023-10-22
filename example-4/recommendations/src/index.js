@@ -1,6 +1,5 @@
 const express = require("express");
 const mongodb = require("mongodb");
-const bodyParser = require("body-parser");
 const amqp = require("amqplib");
 
 if (!process.env.PORT) {
@@ -33,7 +32,7 @@ async function main() {
     //
     // Enables JSON body parsing for HTTP requests.
     //
-    app.use(bodyParser.json()); 
+    app.use(express.json()); 
 
     //
     // Connects to the database server.
